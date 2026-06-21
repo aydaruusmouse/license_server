@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AppAccount;
 use App\Models\License;
 use App\Services\LicenseDeviceActivationService;
+use App\Services\LicenseJwtService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -13,7 +14,19 @@ class AuthController extends Controller
 {
     public function __construct(
         private LicenseDeviceActivationService $activation,
+        private LicenseJwtService $jwt,
     ) {}
+
+    public function jwtPublicKey(): JsonResponse
+    {
+        try {
+            return response()->json([
+                'jwt_public_key' => $this->jwt->readPublicKeyPem(),
+            ]);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+    }
 
     public function login(Request $request): JsonResponse
     {
@@ -66,9 +79,23 @@ class AuthController extends Controller
             if ($e->getMessage() === 'ACTIVATION_LIMIT') {
                 return $this->activation->jsonActivationLimit();
             }
-            throw $e;
+
+            return response()->json(['message' => $e->getMessage()], 500);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'Login failed on server. Check license-server logs.'], 500);
         }
 
-        return response()->json(['token' => $token]);
+        try {
+            $publicKey = $this->jwt->readPublicKeyPem();
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+
+        return response()->json([
+            'token' => $token,
+            'jwt_public_key' => $publicKey,
+        ]);
     }
 }

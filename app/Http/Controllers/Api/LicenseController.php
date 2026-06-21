@@ -60,7 +60,16 @@ class LicenseController extends Controller
             throw $e;
         }
 
-        return response()->json(['token' => $token]);
+        try {
+            $publicKey = $this->jwt->readPublicKeyPem();
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+
+        return response()->json([
+            'token' => $token,
+            'jwt_public_key' => $publicKey,
+        ]);
     }
 
     public function refresh(Request $request): JsonResponse
@@ -114,6 +123,15 @@ class LicenseController extends Controller
         $license->loadMissing('appAccount');
         $token = $this->jwt->issue($license, $deviceId, $license->appAccount);
 
-        return response()->json(['token' => $token]);
+        try {
+            $publicKey = $this->jwt->readPublicKeyPem();
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+
+        return response()->json([
+            'token' => $token,
+            'jwt_public_key' => $publicKey,
+        ]);
     }
 }

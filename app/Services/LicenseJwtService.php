@@ -13,6 +13,22 @@ use UnexpectedValueException;
 
 class LicenseJwtService
 {
+    public function readPublicKeyPem(): string
+    {
+        $keyPath = (string) config('licensing.public_key_path');
+        if (! is_readable($keyPath)) {
+            throw new \RuntimeException(
+                'License public key not readable at '.$keyPath.'. Fix storage/keys permissions for PHP-FPM user.'
+            );
+        }
+        $public = file_get_contents($keyPath);
+        if ($public === false || trim($public) === '') {
+            throw new \RuntimeException('License public key missing at '.$keyPath);
+        }
+
+        return trim($public);
+    }
+
     public function issue(License $license, string $deviceId, ?AppAccount $account = null): string
     {
         $cfg = config('licensing.jwt');
@@ -20,7 +36,13 @@ class LicenseJwtService
         $ttl = max(60, (int) $cfg['ttl_seconds']);
         $exp = $this->resolveTokenExpUnix($license, $now, $ttl);
 
-        $private = file_get_contents(config('licensing.private_key_path'));
+        $keyPath = (string) config('licensing.private_key_path');
+        if (! is_readable($keyPath)) {
+            throw new \RuntimeException(
+                'License private key not readable at '.$keyPath.'. Fix: chown nginx:nginx storage/keys/private.pem && chmod 640 storage/keys/private.pem'
+            );
+        }
+        $private = file_get_contents($keyPath);
         if ($private === false || $private === '') {
             throw new \RuntimeException('License private key missing. Generate storage/keys/private.pem');
         }
